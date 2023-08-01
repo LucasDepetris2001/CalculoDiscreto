@@ -87,12 +87,12 @@ def H(k, m=1): #Devuelve el número armónico generalizado H_k^(m)
     else:
         p, q = k.as_numer_denom()
         if k > 0 and p < q:
-            x = q/p -(pi/2) * cot(p*pi/q)-log(q)+sum([cos(2*s*p*pi/q)*log(2*sin(s*pi/q)) for s in range(1, q)])
+            x = simplify(q/p -(pi/2) * cot(p*pi/q)-log(q)+sum([cos(2*s*p*pi/q)*log(2*sin(s*pi/q)) for s in range(1, q)]))
             return x
         if k < 0 and p < q:
-            return H(-k) + 1/k +pi*cot(pi *(-k))
+            return simplify(H(-k) + 1/k +pi*cot(pi *(-k)))
         if p > q:
-            return H(k-1) + 1/k
+            return simplify(H(k-1) + 1/k)
 
 def fracpar(A, B):
     n = len(B)
