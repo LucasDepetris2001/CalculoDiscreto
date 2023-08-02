@@ -1,6 +1,15 @@
 from sympy import *
 from sympy import Rational as sr
+from sympy import simplify as simplif
 
+sim_memo = {}
+def simplify(a):
+    if a in sim_memo:
+        return sim_memo[a]
+    else:
+        x = simplif(a)
+        sim_memo[a] = x
+        return x
 
 stir1_memo = {}
 def stir1(n, k): #calcula el número de stirling de primer tipo
@@ -33,15 +42,6 @@ def stir2(n, k): #calcula el número de stirling de segundo tipo
         stir2_memo[n, k] = h
         return h
 
-factorial_memo = {}
-def factorial(a):
-    if a <= 1:
-        return 1
-    if a in factorial_memo:
-        return factorial_memo[a]
-    result = prod([i for i in range(2, a + 1)])
-    factorial_memo[a] = result
-    return result
 
 comb_memo = {}
 def comb(n, k): #calcula el número combinatorio entre n y k
@@ -56,47 +56,73 @@ def comb(n, k): #calcula el número combinatorio entre n y k
         comb_memo[n, k] = h
         return h
 
-g_memo = {}
-def g(m, i):
-    if (m, i) in g_memo:
-        return g_memo[m, i]
-    h = prod([t for t in range(1, i)]) * prod([t for t in range(i+1, m+2)])
-    g_memo[m, i] = h
-    return h
 
-def ximod(m, s):
-    return sum([g(m, i) * stir2(m, i-1) * sum([stir1(i, j) * comb(j, s) * (-1) ** (i+j) for j in range(s, i+1)]) for i in range(s, m+2)])
+def coef(m):
+    return [sum([sr(1, i) * stir2(m, i-1) * sum([stir1(i, j) * comb(j, s) * (-1) ** (i+j) for j in range(s, i+1)]) for i in range(s, m+2)]) for s in range(1, m+2)]
 
-def coef(m): #devuelve la lista de coeficientes de menor a mayor grado
-    a = factorial(m+1)
-    h = [[ximod(m, s), a] for s in range(1, m+2)]
-    for i in range(len(h)):
-        x = h[i][0]
-        l = gcd(x, a)
-        h[i] = [x // l, a//l]
-    return h
 
 def lam(A):
     n = len(A)
     B = [simplify(A[i]) for i in range(n)]
     return [1 / (prod([B[j] - B[i] for j in range(i)]) * prod([B[j] - B[i] for j in range(i+1, n)])) for i in range(n)]
 
+H_memo = {}
 def H(k, m=1): #Devuelve el número armónico generalizado H_k^(m)
-    if isinstance(k, int):
-        return sum([sr(1,(i**m)) for i in range(1, k+1)])
+    if m == 1:
+        if k in H_memo:
+            return H_memo[k]
+        if isinstance(k, int):
+            if k < 0:
+                return 'indefinido'
+            h = sum([sr(1, (i**m)) for i in range(1, k+1)])
+            H_memo[k] = h
+            return h
+        if isinstance(k, sr):
+            p, q = k.as_numer_denom()
+            if q == 1:
+                p = int(p)
+                return H(p)
+            if k > 0 and p < q:
+                x = simplify(q/p -(pi/2) * cot(p*pi/q)-log(q)+sum([cos(2*s*p*pi/q)*log(2*sin(s*pi/q)) for s in range(1, q)]))
+                H_memo[k] = x
+                return x
+            if k < 0 and p < q:
+                x = simplify(H(-k) + 1/k +pi*cot(pi *(-k)))
+                H_memo[k] = x
+                return x
+            if p > q:
+                x = simplify(H(k-1) + 1/k)
+                H_memo[k] = x
+                return x
+        else:
+            return harmonic(k, m)
     else:
-        p, q = k.as_numer_denom()
-        if k > 0 and p < q:
-            x = simplify(q/p -(pi/2) * cot(p*pi/q)-log(q)+sum([cos(2*s*p*pi/q)*log(2*sin(s*pi/q)) for s in range(1, q)]))
-            return x
-        if k < 0 and p < q:
-            return simplify(H(-k) + 1/k +pi*cot(pi *(-k)))
-        if p > q:
-            return simplify(H(k-1) + 1/k)
+        if isinstance(k, int):
+            if k < 0:
+                return 'indefinido'
+        if isinstance(k, sr):
+            p, q = k.as_numer_denom()
+            if q == 1:
+                p = int(p)
+                return H(p, m)
+        return harmonic(k, m)
+
+
+def evalsumsqf(A, B):
+    n = len(B)
+    m = len(A)
+    if n < m+1:
+        return 'la suma no converge'
+    L = lam(B)
+    return simplify(sum([(-1)**(i+1) * A[i]*sum([L[j] * B[j]**i * H(B[j]) for j in range(n)]) for i in range(m)]))
 
 def fracpar(A, B):
     n = len(B)
     m = len(A)
+    if A[m-1] == 0:
+        return 'coeficiente principal nulo'
+    if sum([B[j][1] for j in range(n)]) <= m-1:
+        return 'la función racional dada no es propia'
     z = Symbol('z')
     s = [[Symbol('x{}{}'.format(i, j)) for j in range(B[i][1])] for i in range(n)]
     f = sum([sum([s[i][j]/(z+B[i][0])**(j+1) for j in range(B[i][1])]) for i in range(n)])
@@ -105,11 +131,16 @@ def fracpar(A, B):
     S = solve_undetermined_coeffs(eq, [s[i][j] for i in range(n) for j in range(B[i][1])], z)
     return [[S[s[i][j]] for j in range(B[i][1])] for i in range(n)]
 
-def evalsumsqf(A, B):
+def evalsum(A, B):
     n = len(B)
     m = len(A)
-    L = lam(B)
-    return sum([(-1)**(i+1) * A[i]*sum([L[j] * B[j]**i * H(B[j]) for j in range(n)]) for i in range(m)])
+    if A[m - 1] == 0:
+        return 'coeficiente principal nulo'
+    if sum([B[j][1] for j in range(n)]) < m +1:
+        return 'la suma no converge'
+    S = fracpar(A, B)
+    return simplify(sum([sum([S[i][j]*(zeta(j+1) - H(B[i][0], j+1)) for j in range(1, B[i][1])]) for i in range(n)]) -
+                    sum([S[i][0]*H(B[i][0]) for i in range(n)]))
 
 #Algoritmos para comprobar cosas:
 
